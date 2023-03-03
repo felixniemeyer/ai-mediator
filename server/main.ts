@@ -189,45 +189,43 @@ function consultChatGPT(session: any, perspectives: {[secretKey: string]: string
     const perspective = perspectives[name];
 
     const nameList = participants.map((participant: any) => participant.name);
-    let messageToChatGPT = `Hey ChatGPT, there are ${participants.length} people (${nameList.join(', ')}) who have a conflict. Everyone has his own perspctive. Please read their versions of the truth and give ${name} some suggestions on how to deal with the situation in a constructive way.`
+    let messageToChatGPT = `You are the mediator in a conflict involving ${participants.length} people named: (${nameList.join(', ')}). Please give participant 0 named ${name} some suggestions on how to deal with the situation.`
 
     if(session.isSecret) {
-      messageToChatGPT += `You are the only one who knows all the perspectives which the participants have stated in secret.`
+      // messageToChatGPT += " You are the only one who knows all the perspectives which the participants have stated in secret."
     }
+    let prompts = [{"role": "system", "content": messageToChatGPT}];
+    let prompts = [{"role": "mediator", "content": "Please present your viewpoints on the issue at hand."}];
     
+    // Add person that should be adressed opinion first.
+    prompts.push({
+      "role": `participant 0 named ${name}`,
+      "content": perspective
+    })
+    
+    // Add remaining perspectives in rotating order
     for(let j = 0; j < participants.length; j++) {
       const index = (i + 1 + j) % participants.length;
       const otherParticipant = participants[index];
       const otherPerspective = perspectives[otherParticipant.secretKey];
-      messageToChatGPT += `\n\nHere is ${otherParticipant.name}'s perspective: ${otherPerspective}`
+      prompts.push({
+        "role": `participant ${index} named ${otherParticipant.name}`,
+        "content": otherPerspective
+      })
     }
 
-    messageToChatGPT += `\n\nHere is ${name}'s perspective: ${perspective}`
-
-    messageToChatGPT += `\n\nNow please give ${name} some suggestions on how to deal with the situation in a constructive way. Make sure not leak any precarious details from anyones perspective.`
-
-    console.log(messageToChatGPT);
+    console.log(prompts);
     
-    // send request to oimport os
-    ChatCompletion.create(
-      model="gpt-3.5-turbo",
-      messages=[
-            {"role": "system", "content": "You are a helpful assistant."},
-            {"role": "user", "content": "Who won the world series in 2020?"},
-            {"role": "assistant", "content": "The Los Angeles Dodgers won the World Series in 2020."},
-            {"role": "user", "content": "Where was it played?"}
-        ]
-    )
 
     openai.createCompletion({
-      model: "text-davinci-003",
-      prompt: messageToChatGPT,
-      max_tokens: 3000,
-      temperature: 0.9,
-      top_p: 1,
-      frequency_penalty: 0.0,
-      presence_penalty: 0.6,
-      stop: nameList, 
+      model: "gpt-3.5-turbo",
+      prompt: prompts,
+      // max_tokens: 3000,
+      // temperature: 0.9,
+      // top_p: 1,
+      // frequency_penalty: 0.0,
+      // presence_penalty: 0.6,
+      // stop: nameList, 
     }).then((response) => {
       console.log(response.data);
       fs.writeFile('./sessions/' + session.id + '/' + participant.secretKey + '/answer.json', JSON.stringify(response.data), (err) => {
