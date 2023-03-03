@@ -7,21 +7,27 @@ import express from 'express';
 import http from 'http';
 import bodyParser from 'body-parser';
 import twilio from 'twilio';
-import mongoose from 'mongoose';
 import nodemailer from 'nodemailer';
-import { model, Schema } from 'mongoose';
+
+import { Configuration, OpenAIApi } from 'openai';
+
+import fs from 'fs'; 
 
 const app = express();
 const server = http.createServer(app);
 
 const port = process.env.PORT || 3000;
 
+const frontEndUrl = process.env.FRONT_END_URL || 'http://localhost:5173';
+
+const configuration = new Configuration({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+const openai = new OpenAIApi(configuration);
+
 // set up the express server
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
-
-// set up the database
-mongoose.connect('mongodb://localhost:27017/perspective');
 
 // set up the twilio client
 const twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
@@ -33,35 +39,228 @@ const transporter = nodemailer.createTransport({
   }
 });
 
-// set up the database models
-const Session = model('Session', new Schema({
-  name: String,
-  participation: [Schema.Types.ObjectId],
-}));
-
-const Participation = model('Participant', new Schema({
-  session: Schema.Types.ObjectId,
-  name: String,
-  constact: {
-    type: String,
-    value: String,
-  }, 
-  perspective: String,
-  result: String,
-}))
+// create random key
+function randomKey() {
+  return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+}
 
 // set up the routes
-app.post('/api/session', (req, res) => {
+app.post('/session', (req, res) => {
+  // generate session id
+  const session = {
+    id: randomKey(),
+    ...req.body,
+  }
+  const errors = [];
+
+  // create new folder for session
+  fs.mkdir('./sessions/' + session.id, (err) => {
+    if (err) {
+      errors.push(err);
+      console.log(err);
+    }
+  })
+
+  // for every participant
+  session.participants.forEach((participant: any) => {
+    // generate secret key
+    const secretKey = randomKey();
+
+    // create new folder for participant
+    fs.mkdir('./sessions/' + session.id + '/' + secretKey, (err) => {
+      if (err) {
+        errors.push(err);
+        console.log(err);
+      }
+    })
+
+    // save meta file for participant
+    fs.writeFile('./sessions/' + session.id + '/' + secretKey + '/meta.json', JSON.stringify(participant), (err) => {
+      if (err) {
+        errors.push(err);
+        console.log(err);
+      }
+    })
+
+    participant.secretKey = secretKey;
+
+    // send email or SMS
+    sendEmailOrSMS(session, participant) 
+  });
+
+  // write meta information to file
+  fs.writeFile('./sessions/' + session.id + '/meta.json', session, (err) => {
+    if (err) {
+      console.log(err);
+    }
+  })
+
+  res.send({ sessionId: session.id });
 }); 
 
-app.post('/api/perspective', (req, res) => {
-}); 
+const onlyLog = true
+function sendEmailOrSMS(session: any, participant: any) {
+  const text = `Hi ${participant.name}, you have been invited to participate in a perspective taking session. Please click on the following link to participate: ${frontEndUrl}/session/${session.id}/${participant.secretKey}`
 
-app.get('/api/participation', (req, res) => {
+  if(onlyLog) {
+  } else if (participant.contactType === 'email') {
+    const mailOptions = {
+      from: 'ai-mediator@gmail.com',
+      to: participant.email,
+      subject: 'Invitation to participate in a perspective taking session',
+      text
+    };
+    // send email
+    transporter.sendMail(mailOptions, (error, info) => {
+      console.log("mail sent", info);
+      if (error) {
+        throw(new Error('could not send email:' + error));
+      }
+    });
+  } else {
+    // send SMS
+    twilioClient.messages.create({
+      to: participant.phone,
+      from: process.env.TWILIO_PHONE_NUMBER,
+      body: text
+    }).catch((error) => {
+      throw(new Error('could not send SMS:' + error));
+    })
+  }
+}
+
+app.post('/perspective', (req, res) => {
+  // TBD: memory lock
+  // TBD: check if session is already closed
+
+  const sessionId = req.body.sessionId;
+  const secretKey = req.body.secretKey;
+  const perspective = req.body.perspective;
+
+  // load meta information from file
+  fs.readFile('./sessions/' + sessionId + '/meta.json', (err, data) => {
+    if(err) {
+      res.send({ status: 'err', msg: 'could not find session' });
+    } else {
+      const session = JSON.parse(data.toString());
+      // check that secret key is valid
+      const participant = session.participants.find((participant: any) => participant.secretKey === secretKey);
+      if (participant) {
+        // write perspective to file
+        fs.writeFile('./sessions/' + sessionId + '/' + secretKey + '/perspective.json', perspective, (err) => {
+          if (err) {
+            res.send({ status: 'err', msg: 'could not store perspective' });
+          }
+        })
+        // check if all perspectives have been submitted
+        Promise.all(session.participants.map((participant: any) => {
+            // check if file exists
+            new Promise((resolve, reject) => {
+              fs.readFile('./sessions/' + sessionId + '/' + secretKey + '/perspective.json', (err, data) => {
+                if (err) {
+                  reject(false);
+                } else {
+                  resolve([participant.secretKey, data])
+                }
+              }
+            )})
+          })
+        ).then((perspectives) => {
+          const dict = {}
+          perspectives.forEach((tuple) => {
+            perspectives[tuple[0]] = tuple[1];
+          }) 
+          consultChatGPT(session, dict);
+        })
+        res.send({ status: 'ok' });
+      } else {
+        res.send({ status: 'err', msg: 'invalid secret key' });
+      }
+    }
+  }); 
+});
+
+function consultChatGPT(session: any, perspectives: {[secretKey: string]: string}) {
+  // load all perspectives from fs
+  const participants = session.participants
+  participants.forEach((participant: any, i: number) => {
+    const name = participant.name;
+    const perspective = perspectives[name];
+
+    const nameList = participants.map((participant: any) => participant.name);
+    let messageToChatGPT = `Hey ChatGPT, there are ${participants.length} people (${nameList.join(', ')}) who have a conflict. Everyone has his own perspctive. Please read their versions of the truth and give ${name} some suggestions on how to deal with the situation in a constructive way.`
+
+    if(session.isSecret) {
+      messageToChatGPT += `You are the only one who knows all the perspectives which the participants have stated in secret.`
+    }
+    
+    for(let j = 0; j < participants.length; j++) {
+      const index = (i + 1 + j) % participants.length;
+      const otherParticipant = participants[index];
+      const otherPerspective = perspectives[otherParticipant.secretKey];
+      messageToChatGPT += `\n\nHere is ${otherParticipant.name}'s perspective: ${otherPerspective}`
+    }
+
+    messageToChatGPT += `\n\nHere is ${name}'s perspective: ${perspective}`
+
+    messageToChatGPT += `\n\nNow please give ${name} some suggestions on how to deal with the situation in a constructive way. Make sure not leak any precarious details from anyones perspective.`
+
+    console.log(messageToChatGPT);
+    
+    // send request to oimport os
+    openai.createCompletion({
+      model: "text-davinci-003",
+      prompt: messageToChatGPT,
+      max_tokens: 3000,
+      temperature: 0.9,
+      top_p: 1,
+      frequency_penalty: 0.0,
+      presence_penalty: 0.6,
+      stop: nameList, 
+    }).then((response) => {
+      console.log(response.data);
+      fs.writeFile('./sessions/' + session.id + '/' + participant.secretKey + '/answer.json', JSON.stringify(response.data), (err) => {
+        if (err) {
+          console.log(err);
+        }
+      })
+    })
+
+  });
+}
+
+app.get('/session/:sessionId/results/:secretKey', (req, res) => {
+  const sessionId = req.params.sessionId;
+  const secretKey = req.params.secretKey;
+
+  // load meta information from file
+  fs.readFile('./sessions/' + sessionId + '/meta.json', (err, data) => {
+    if(err) {
+      res.send({ status: 'err', msg: 'could not find session' });
+    } else {
+      const session = JSON.parse(data.toString());
+      // check that secret key is valid
+      const participant = session.participants.find((participant: any) => participant.secretKey === secretKey);
+      if (participant) {
+        // load all perspectives from fs
+        Promise.allSettled([
+          fs.promises.readFile('./sessions/' + sessionId + '/' + secretKey + '/perspective.json'), 
+          fs.promises.readFile('./sessions/' + sessionId + '/' + secretKey + '/answer.json')
+        ]).then((results) => {
+          res.send({ 
+            perspective: results[0], 
+            answer: results[1]
+          });
+        })
+      } else {
+        res.send({ status: 'err', msg: 'invalid secret key' });
+      }
+    }
+  });
+
 }); 
 
 // start the server
 server.listen(port, () => {
   console.log(`Listening on port ${port}`);
 })
-
