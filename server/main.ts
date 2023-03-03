@@ -195,7 +195,7 @@ function consultChatGPT(session: any, perspectives: {[secretKey: string]: string
       // messageToChatGPT += " You are the only one who knows all the perspectives which the participants have stated in secret."
     }
     let prompts = [{"role": "system", "content": messageToChatGPT}];
-    let prompts = [{"role": "mediator", "content": "Please present your viewpoints on the issue at hand."}];
+    prompts = [{"role": "mediator", "content": "Please present your viewpoints on the issue at hand."}];
     
     // Add person that should be adressed opinion first.
     prompts.push({
