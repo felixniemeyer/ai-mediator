@@ -9,7 +9,7 @@ import bodyParser from 'body-parser';
 import twilio from 'twilio';
 import nodemailer from 'nodemailer';
 
-import { Configuration, OpenAIApi } from 'openai';
+import { Configuration, OpenAIApi, ChatCompletion } from 'openai';
 
 import fs from 'fs'; 
 
@@ -103,6 +103,7 @@ function sendEmailOrSMS(session: any, participant: any) {
   const text = `Hi ${participant.name}, you have been invited to participate in a perspective taking session. Please click on the following link to participate: ${frontEndUrl}/session/${session.id}/${participant.secretKey}`
 
   if(onlyLog) {
+    console.log("Should send email and SMS here but we are only Logging")
   } else if (participant.contactType === 'email') {
     const mailOptions = {
       from: 'ai-mediator@gmail.com',
@@ -208,6 +209,16 @@ function consultChatGPT(session: any, perspectives: {[secretKey: string]: string
     console.log(messageToChatGPT);
     
     // send request to oimport os
+    ChatCompletion.create(
+      model="gpt-3.5-turbo",
+      messages=[
+            {"role": "system", "content": "You are a helpful assistant."},
+            {"role": "user", "content": "Who won the world series in 2020?"},
+            {"role": "assistant", "content": "The Los Angeles Dodgers won the World Series in 2020."},
+            {"role": "user", "content": "Where was it played?"}
+        ]
+    )
+
     openai.createCompletion({
       model: "text-davinci-003",
       prompt: messageToChatGPT,
