@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onBeforeMount } from "vue";
 import axios from "axios";
+import config from "../config";
 
 const result = ref(undefined as string | undefined);
 
@@ -17,7 +18,7 @@ const submitError = ref(undefined as undefined | string);
 const check = async () => {
   loading.value = true;
   try {
-    const response = await axios.get("/api/participation");
+    const response = await axios.get(config.BACKEND_URL + "/api/participation");
     if (response.data.perspective !== undefined) {
       submitted.value = true;
       perspective.value = response.data.perspective;
@@ -42,7 +43,7 @@ const submit = async () => {
   } else {
     submitting.value = true;
     try {
-      const { data } = await axios.post("/api/perspective", {
+      const { data } = await axios.post(config.BACKEND_URL + "/api/perspective", {
         perspective: perspective.value,
       });
       result.value = data;

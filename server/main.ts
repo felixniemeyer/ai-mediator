@@ -8,17 +8,21 @@ import http from 'http';
 import bodyParser from 'body-parser';
 import twilio from 'twilio';
 import nodemailer from 'nodemailer';
+import cors from 'cors';
 
 import { Configuration, OpenAIApi } from 'openai';
 
 import fs from 'fs'; 
 
+const frontEndUrl = process.env.FRONT_END_URL || 'https://localhost:5173/';
 const app = express();
+app.use(cors({
+  origin: '*'
+}));
 const server = http.createServer(app);
 
 const port = process.env.PORT || 3000;
 
-const frontEndUrl = process.env.FRONT_END_URL || 'http://localhost:5173';
 
 const configuration = new Configuration({
   apiKey: process.env.OPENAI_API_KEY,
