@@ -3,21 +3,21 @@
 ## client
 install dependencies: 
 ```sh
-yarn
+npm i
 ```
 
 run: 
 ```sh
-yarn dev
+npm run dev
 ```
 
 ## server
 install dependencies: 
 ```sh
-yarn
+npm i
 ```
 
 run: 
 ```sh
-yarn start
+npm run start
 ```
