@@ -9,7 +9,7 @@ import bodyParser from 'body-parser';
 import twilio from 'twilio';
 import nodemailer from 'nodemailer';
 
-import { Configuration, OpenAIApi, ChatCompletion } from 'openai';
+import { Configuration, OpenAIApi } from 'openai';
 
 import fs from 'fs'; 
 
