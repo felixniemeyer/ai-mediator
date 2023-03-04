@@ -20,24 +20,12 @@ const app = express();
 
 const server = http.createServer(app);
 
-app.use(cors({
-  allowedHeaders: [
-    'Content-Type',
-    'Host',
-    'User-Agent',
-    'Accept',
-    'Accept-Language',
-    'Accept-Encoding',
-    'Access-Control-Request-Method',
-    'Access-Control-Request-Headers',
-    'Referer',
-    'Origin',
-    'Connection',
-    'Sec-Fetch-Dest',
-    'Sec-Fetch-Mode',
-    'Sec-Fetch-Site',
-  ]
-}));
+app.use(cors());
+
+// check if sessions folder exists and create it if not
+if (!fs.existsSync('./sessions')) {
+  fs.mkdirSync('./sessions');
+}
 
 const port = process.env.PORT || 3000;
 
@@ -74,6 +62,7 @@ function randomKey() {
 // set up the routes
 app.post('/session', (req, res) => {
   // generate session id
+  console.log(req.body);
   const session = {
     id: randomKey(),
     ...req.body,

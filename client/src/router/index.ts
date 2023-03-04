@@ -15,7 +15,7 @@ const router = createRouter({
       component: () => import("../views/CreateView.vue"),
     },
     {
-      path: "/participate/:id",
+      path: "/session/:id/results/:key",
       name: "participate",
       component: () => import("../views/ParticipateView.vue"),
     }

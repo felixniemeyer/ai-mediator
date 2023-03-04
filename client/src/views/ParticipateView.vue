@@ -2,6 +2,8 @@
 import { ref, onBeforeMount } from "vue";
 import axios from "axios";
 import config from "../config";
+import { useRoute } from "vue-router";
+const route = useRoute();
 
 const result = ref(undefined as string | undefined);
 
@@ -18,7 +20,11 @@ const submitError = ref(undefined as undefined | string);
 const check = async () => {
   loading.value = true;
   try {
-    const response = await axios.get(config.backendUrl + "/api/participation");
+    // /session/:sessionId/results/:secretKey
+
+    const path = `/session/${route.params.session}/results/${route.params.key}`;
+
+    const response = await axios.get(config.backendUrl + path);
     if (response.data.perspective !== undefined) {
       submitted.value = true;
       perspective.value = response.data.perspective;
@@ -43,12 +49,11 @@ const submit = async () => {
   } else {
     submitting.value = true;
     try {
-      const { data } = await axios.post(
-        config.backendUrl + "/api/perspective",
-        {
-          perspective: perspective.value,
-        }
-      );
+      const { data } = await axios.post(config.backendUrl + "/perspective", {
+        sessionId: route.params.session,
+        secretKey: route.params.key,
+        perspective: perspective.value,
+      });
       result.value = data;
       submitError.value = undefined;
     } catch (e) {

@@ -3,23 +3,18 @@ import { ref } from "vue";
 import axios from "axios";
 import config from "../config";
 
-enum ContactType {
-  email,
-  phone,
-}
+type ContactType = "email" | "phone";
 
 interface Person {
   name: string;
-  contactType: ContactType;
-  email: string;
-  phone: string;
+  contactType: ContactType | undefined;
+  contact: string;
 }
 
 const emptyPerson: Person = {
   name: "",
-  contactType: ContactType.phone,
-  email: "",
-  phone: "",
+  contactType: undefined,
+  contact: "",
 };
 
 const addPerson = () => {
@@ -48,8 +43,8 @@ const error = ref(undefined as string | undefined);
 const createSession = async () => {
   sending.value = true;
   try {
-    const response = await axios.post(config.backendUrl + "/api/createSession", {
-      persons: persons.value,
+    const response = await axios.post(config.backendUrl + "/session", {
+      participants: persons.value,
     });
     if (response.status === 200) {
       ready.value = true;
@@ -81,22 +76,11 @@ const createSession = async () => {
     <p>Enter contact details of the participants</p>
     <ul>
       <li v-for="(person, i) in persons" :key="i">
-        <input type="text" v-model="person.name" placeholder="Name" />
-        <select v-model="person.contactType">
-          <option :value="ContactType.email">Email</option>
-          <option :value="ContactType.phone">Phone</option>
-        </select>
+        <input type="text" v-model="person.name" placeholder="name" />
         <input
-          v-if="person.contactType == ContactType.email"
-          type="email"
-          v-model="person.email"
-          placeholder="Email address"
-        />
-        <input
-          v-else
-          type="email"
-          v-model="person.phone"
-          placeholder="Phone number"
+          type="contact"
+          v-model="person.contact"
+          placeholder="contact info"
         />
         <button @click="removePerson(i)">Remove</button>
       </li>
