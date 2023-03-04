@@ -18,7 +18,7 @@ const submitError = ref(undefined as undefined | string);
 const check = async () => {
   loading.value = true;
   try {
-    const response = await axios.get(config.BACKEND_URL + "/api/participation");
+    const response = await axios.get(config.backendUrl + "/api/participation");
     if (response.data.perspective !== undefined) {
       submitted.value = true;
       perspective.value = response.data.perspective;
@@ -43,9 +43,12 @@ const submit = async () => {
   } else {
     submitting.value = true;
     try {
-      const { data } = await axios.post(config.BACKEND_URL + "/api/perspective", {
-        perspective: perspective.value,
-      });
+      const { data } = await axios.post(
+        config.backendUrl + "/api/perspective",
+        {
+          perspective: perspective.value,
+        }
+      );
       result.value = data;
       submitError.value = undefined;
     } catch (e) {

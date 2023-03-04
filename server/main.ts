@@ -15,13 +15,33 @@ import { Configuration, OpenAIApi } from 'openai';
 import fs from 'fs'; 
 
 const frontEndUrl = process.env.FRONT_END_URL || 'https://localhost:5173/';
+
 const app = express();
-app.use(cors({
-  origin: '*'
-}));
+
 const server = http.createServer(app);
 
+app.use(cors({
+  allowedHeaders: [
+    'Content-Type',
+    'Host',
+    'User-Agent',
+    'Accept',
+    'Accept-Language',
+    'Accept-Encoding',
+    'Access-Control-Request-Method',
+    'Access-Control-Request-Headers',
+    'Referer',
+    'Origin',
+    'Connection',
+    'Sec-Fetch-Dest',
+    'Sec-Fetch-Mode',
+    'Sec-Fetch-Site',
+  ]
+}));
+
 const port = process.env.PORT || 3000;
+
+console.log('running on port', port) 
 
 
 const configuration = new Configuration({
@@ -34,7 +54,10 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
 
 // set up the twilio client
-const twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+const twilioClient = twilio(
+  process.env.TWILIO_ACCOUNT_SID, 
+  process.env.TWILIO_AUTH_TOKEN
+);
 
 // set up the nodemailer client
 const transporter = nodemailer.createTransport({
