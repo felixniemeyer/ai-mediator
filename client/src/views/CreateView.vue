@@ -48,7 +48,7 @@ const error = ref(undefined as string | undefined);
 const createSession = async () => {
   sending.value = true;
   try {
-    const response = await axios.post(config.backendUrl + "/api/createSession", {
+    const response = await axios.post(config.backendUrl + "/createSession", {
       persons: persons.value,
     });
     if (response.status === 200) {

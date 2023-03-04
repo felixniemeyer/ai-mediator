@@ -1,7 +1,7 @@
 // create a express server that handles
-// post for api/session for creating a session and sending SMS invitations
-// post for api/perspective  for submitting perspectives
-// get for api/participation for requesting participation data
+// post for session for creating a session and sending SMS invitations
+// post for perspective  for submitting perspectives
+// get for participation for requesting participation data
 
 import express from 'express';
 import http from 'http';
