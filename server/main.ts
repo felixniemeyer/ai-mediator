@@ -6,13 +6,10 @@
 import express from 'express';
 import http from 'http';
 import bodyParser from 'body-parser';
-import twilio from 'twilio';
 import nodemailer from 'nodemailer';
 import cors from 'cors';
 
 import { Configuration, OpenAIApi } from 'openai';
-
-import { fsWriteAndMkdir } from './utils';
 
 import fs from 'fs'; 
 
@@ -22,24 +19,12 @@ const app = express();
 
 const server = http.createServer(app);
 
-app.use(cors({
-  allowedHeaders: [
-    'Content-Type',
-    'Host',
-    'User-Agent',
-    'Accept',
-    'Accept-Language',
-    'Accept-Encoding',
-    'Access-Control-Request-Method',
-    'Access-Control-Request-Headers',
-    'Referer',
-    'Origin',
-    'Connection',
-    'Sec-Fetch-Dest',
-    'Sec-Fetch-Mode',
-    'Sec-Fetch-Site',
-  ]
-}));
+app.use(cors());
+
+// check if sessions folder exists and create it if not
+if (!fs.existsSync('./sessions')) {
+  fs.mkdirSync('./sessions');
+}
 
 const port = process.env.PORT || 3000;
 
@@ -68,45 +53,74 @@ const transporter = nodemailer.createTransport({
   }
 });
 
+function sessionFile(sessionId: string) {
+  return sessionDir(sessionId) + '/meta.json';
+}
+
+const sessionDir = (sessionId: string) => {
+  return './sessions/' + sessionId;
+}
+
+function participantFile(sessionId: string, secretKey: string) {
+  return participantDir(sessionId, secretKey) + '/meta.json';
+}
+
+const participantDir = (sessionId: string, secretKey: string) => {
+  return sessionDir(sessionId) + '/' + secretKey;
+}
+
+function perspectiveFile(sessionId: string, secretKey: string) {
+  return participantDir(sessionId, secretKey) + '/perspective.json';
+}
+
+function answerFile(sessionId: string, secretKey: string) {
+  return participantDir(sessionId, secretKey) + '/answer.json';
+}
+
 // create random key
 function randomKey() {
   return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
 }
 
 // set up the routes
-app.post('/session', (req, res) => {
+app.post('/session', async (req, res) => {
   // generate session id
+  console.log(req.body);
   const session = {
     id: randomKey(),
     ...req.body,
   }
-  const errors = [];
 
-  // write meta information to file
-  fsWriteAndMkdir(sessionPath(session.id), session, (err) => {
-    if (err) {
-      console.log(err);
-    }
-  })
+  // create direcoties and files
+  try {
+    await fs.promises.mkdir(sessionDir(session.id))
+  } catch (e) {
+    console.error('failed to create session directory:', e);
+    res.status(500).send('error creating session');
+    return;
+  }
 
-  // for every participant
-  session.participants.forEach((participant: any) => {
-    // generate secret key
-    const secretKey = randomKey();
+  try {
+    await Promise.all(
+      session.participants.map(async (participant: any) => {
+        const secretKey = randomKey();
+        participant.secretKey = secretKey;
+        await fs.promises.mkdir(participantDir(session.id, secretKey))
+        await fs.promises.writeFile(participantFile(session.id, secretKey), JSON.stringify(participant))
+        sendEmailOrSMS(session, participant) 
+      })
+    )
+  } catch (err) {
+    console.error('failed to create at least one participant directory or file:', err);
+    session.creationError = err; 
+    res.status(500).send('error creating session');
+    return;
+  }
 
-    // save meta file for participant
-    fsWriteAndMkdir(personPath(session.id, secretKey), JSON.stringify(participant), (err) => {
-      if (err) {
-        errors.push(err);
-        console.log(err);
-      }
-    })
-
-    participant.secretKey = secretKey;
-
-    // send email or SMS
-    sendEmailOrSMS(session, participant) 
-  });
+  await fs.promises.writeFile(
+    sessionFile(session.id), 
+    JSON.stringify(session)
+  );
 
   res.send({ sessionId: session.id });
 }); 
@@ -143,23 +157,8 @@ function sendEmailOrSMS(session: any, participant: any) {
   }
 }
 
-const sessionPath = (sessionId: string) => {
-  return './session/' + sessionId + '/meta.json';
-}
 
-const personPath = (sessionId: string, secretKey: string) => {
-  return './session/' + sessionId + '/' + secretKey + '/meta.json';
-}
-
-const perspectivePath = (sessionId: string, secretKey: string) => {
-  return './session/' + sessionId + '/' + secretKey + '/perspective.json';
-}
-
-const answerPath = (sessionId: string, secretKey: string) => {
-  return './session/' + sessionId + '/' + secretKey + '/answer.json';
-}
-
-app.post('/perspective', (req, res) => {
+app.post('/perspective', async (req, res) => {
   // TBD: memory lock
   // TBD: check if session is already closed
 
@@ -168,43 +167,47 @@ app.post('/perspective', (req, res) => {
   const perspective = req.body.perspective;
 
   // load meta information from file
-  fs.readFile(sessionMetaFilePath(sessionId), (err, data) => {
-    if(err) {
-      res.send({ status: 'err', msg: 'could not find session' });
+  fs.readFile(sessionFile(sessionId), (err, data) => {
+    if (err) {
+      console.error('failed to read session file:', err);
+      res.status(500).send('error reading session file');
+      return;
     } else {
       const session = JSON.parse(data.toString());
       // check that secret key is valid
       const participant = session.participants.find((participant: any) => participant.secretKey === secretKey);
       if (participant) {
         // write perspective to file
-        fsWriteAndMkdir(perspectivePath(sessionId, secretKey), perspective, (err) => {
+        fs.writeFile(perspectiveFile(sessionId, secretKey), perspective, (err) => {
           if (err) {
-            res.send({ status: 'err', msg: 'could not store perspective' });
+            console.error('failed to write perspective file:', err);
+            res.status(500).send('error writing perspective file');
+          } else {
+            // check if all perspectives have been submitted
+            Promise.all(session.participants.map((participant: any) => {
+                // check if file exists
+                new Promise((resolve, reject) => {
+                  fs.readFile(perspectiveFile(sessionId, secretKey), (err, data) => {
+                    if (err) {
+                      reject(false);
+                    } else {
+                      resolve([participant.secretKey, data])
+                    }
+                  }
+                )})
+              })
+            ).then((perspectives) => {
+              const dict = {}
+              perspectives.forEach((tuple) => {
+                perspectives[tuple[0]] = tuple[1];
+              }) 
+              consultChatGPT(session, dict);
+              res.send({ status: 'complete' });
+            }).catch(() => {
+              res.send({ status: 'ok' });
+            })
           }
         })
-        // check if all perspectives have been submitted
-        Promise.all(session.participants.map((participant: any) => {
-            // check if file exists
-            new Promise((resolve, reject) => {
-              fs.readFile(perspectivePath(sessionId, secretKey), (err, data) => {
-                if (err) {
-                  reject(false);
-                } else {
-                  resolve([participant.secretKey, data])
-                }
-              }
-            )})
-          })
-        ).then((perspectives) => {
-          const dict = {}
-          perspectives.forEach((tuple) => {
-            perspectives[tuple[0]] = tuple[1];
-          }) 
-          consultChatGPT(session, dict);
-        })
-        res.send({ status: 'ok' });
-      } else {
-        res.send({ status: 'err', msg: 'invalid secret key' });
       }
     }
   }); 
@@ -257,7 +260,7 @@ function consultChatGPT(session: any, perspectives: {[secretKey: string]: string
       // stop: nameList, 
     }).then((response) => {
       console.log(response.data);
-      fsWriteAndMkdir(answerPath(session.id, participant.secretKey), JSON.stringify(response.data), (err) => {
+      fs.writeFile(answerFile(session.id, participant.secretKey), JSON.stringify(response.data), (err) => {
         if (err) {
           console.log(err);
         }
@@ -272,7 +275,7 @@ app.get('/session/:sessionId/results/:secretKey', (req, res) => {
   const secretKey = req.params.secretKey;
 
   // load meta information from file
-  fs.readFile(sessionPath(sessionId), (err, data) => {
+  fs.readFile(sessionDir(sessionId), (err, data) => {
     if(err) {
       res.send({ status: 'err', msg: 'could not find session' });
     } else {
@@ -282,8 +285,8 @@ app.get('/session/:sessionId/results/:secretKey', (req, res) => {
       if (participant) {
         // load all perspectives from fs
         Promise.allSettled([
-          fs.promises.readFile(perspectivePath(sessionId, secretKey)), 
-          fs.promises.readFile(answerPath(sessionId, secretKey))
+          fs.promises.readFile(perspectiveFile(sessionId, secretKey)), 
+          fs.promises.readFile(answerFile(sessionId, secretKey))
         ]).then((results) => {
           res.send({ 
             perspective: results[0], 
@@ -295,7 +298,6 @@ app.get('/session/:sessionId/results/:secretKey', (req, res) => {
       }
     }
   });
-
 }); 
 
 // start the server
