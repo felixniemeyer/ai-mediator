@@ -54,10 +54,10 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
 
 // set up the twilio client
-const twilioClient = twilio(
-  process.env.TWILIO_ACCOUNT_SID, 
-  process.env.TWILIO_AUTH_TOKEN
-);
+// const twilioClient = twilio(
+//   process.env.TWILIO_ACCOUNT_SID, 
+//   process.env.TWILIO_AUTH_TOKEN
+// );
 
 // set up the nodemailer client
 const transporter = nodemailer.createTransport({
