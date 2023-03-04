@@ -8,17 +8,41 @@ import http from 'http';
 import bodyParser from 'body-parser';
 import twilio from 'twilio';
 import nodemailer from 'nodemailer';
+import cors from 'cors';
 
 import { Configuration, OpenAIApi } from 'openai';
 
 import fs from 'fs'; 
 
+const frontEndUrl = process.env.FRONT_END_URL || 'https://localhost:5173/';
+
 const app = express();
+
 const server = http.createServer(app);
+
+app.use(cors({
+  allowedHeaders: [
+    'Content-Type',
+    'Host',
+    'User-Agent',
+    'Accept',
+    'Accept-Language',
+    'Accept-Encoding',
+    'Access-Control-Request-Method',
+    'Access-Control-Request-Headers',
+    'Referer',
+    'Origin',
+    'Connection',
+    'Sec-Fetch-Dest',
+    'Sec-Fetch-Mode',
+    'Sec-Fetch-Site',
+  ]
+}));
 
 const port = process.env.PORT || 3000;
 
-const frontEndUrl = process.env.FRONT_END_URL || 'http://localhost:5173';
+console.log('running on port', port) 
+
 
 const configuration = new Configuration({
   apiKey: process.env.OPENAI_API_KEY,
@@ -30,7 +54,10 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
 
 // set up the twilio client
-const twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+// const twilioClient = twilio(
+//   process.env.TWILIO_ACCOUNT_SID, 
+//   process.env.TWILIO_AUTH_TOKEN
+// );
 
 // set up the nodemailer client
 const transporter = nodemailer.createTransport({
@@ -103,6 +130,7 @@ function sendEmailOrSMS(session: any, participant: any) {
   const text = `Hi ${participant.name}, you have been invited to participate in a perspective taking session. Please click on the following link to participate: ${frontEndUrl}/session/${session.id}/${participant.secretKey}`
 
   if(onlyLog) {
+    console.log("Should send email and SMS here but we are only Logging")
   } else if (participant.contactType === 'email') {
     const mailOptions = {
       from: 'ai-mediator@gmail.com',
@@ -188,35 +216,43 @@ function consultChatGPT(session: any, perspectives: {[secretKey: string]: string
     const perspective = perspectives[name];
 
     const nameList = participants.map((participant: any) => participant.name);
-    let messageToChatGPT = `Hey ChatGPT, there are ${participants.length} people (${nameList.join(', ')}) who have a conflict. Everyone has his own perspctive. Please read their versions of the truth and give ${name} some suggestions on how to deal with the situation in a constructive way.`
+    let messageToChatGPT = `You are the mediator in a conflict involving ${participants.length} people named: (${nameList.join(', ')}). Please give participant 0 named ${name} some suggestions on how to deal with the situation.`
 
     if(session.isSecret) {
-      messageToChatGPT += `You are the only one who knows all the perspectives which the participants have stated in secret.`
+      // messageToChatGPT += " You are the only one who knows all the perspectives which the participants have stated in secret."
     }
+    let prompts = [{"role": "system", "content": messageToChatGPT}];
+    prompts = [{"role": "mediator", "content": "Please present your viewpoints on the issue at hand."}];
     
+    // Add person that should be adressed opinion first.
+    prompts.push({
+      "role": `participant 0 named ${name}`,
+      "content": perspective
+    })
+    
+    // Add remaining perspectives in rotating order
     for(let j = 0; j < participants.length; j++) {
       const index = (i + 1 + j) % participants.length;
       const otherParticipant = participants[index];
       const otherPerspective = perspectives[otherParticipant.secretKey];
-      messageToChatGPT += `\n\nHere is ${otherParticipant.name}'s perspective: ${otherPerspective}`
+      prompts.push({
+        "role": `participant ${index} named ${otherParticipant.name}`,
+        "content": otherPerspective
+      })
     }
 
-    messageToChatGPT += `\n\nHere is ${name}'s perspective: ${perspective}`
-
-    messageToChatGPT += `\n\nNow please give ${name} some suggestions on how to deal with the situation in a constructive way. Make sure not leak any precarious details from anyones perspective.`
-
-    console.log(messageToChatGPT);
+    console.log(prompts);
     
-    // send request to oimport os
+
     openai.createCompletion({
-      model: "text-davinci-003",
-      prompt: messageToChatGPT,
-      max_tokens: 3000,
-      temperature: 0.9,
-      top_p: 1,
-      frequency_penalty: 0.0,
-      presence_penalty: 0.6,
-      stop: nameList, 
+      model: "gpt-3.5-turbo",
+      prompt: prompts,
+      // max_tokens: 3000,
+      // temperature: 0.9,
+      // top_p: 1,
+      // frequency_penalty: 0.0,
+      // presence_penalty: 0.6,
+      // stop: nameList, 
     }).then((response) => {
       console.log(response.data);
       fs.writeFile('./sessions/' + session.id + '/' + participant.secretKey + '/answer.json', JSON.stringify(response.data), (err) => {

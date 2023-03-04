@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import axios from "axios";
+import config from "../config";
 
 enum ContactType {
   email,
@@ -47,7 +48,7 @@ const error = ref(undefined as string | undefined);
 const createSession = async () => {
   sending.value = true;
   try {
-    const response = await axios.post("/api/createSession", {
+    const response = await axios.post(config.backendUrl + "/api/createSession", {
       persons: persons.value,
     });
     if (response.status === 200) {
