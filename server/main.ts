@@ -136,13 +136,13 @@ function sendEmailOrSMS(session: any, participant: any) {
     });
   } else {
     // send SMS
-    twilioClient.messages.create({
-      to: participant.phone,
-      from: process.env.TWILIO_PHONE_NUMBER,
-      body: text
-    }).catch((error) => {
-      throw(new Error('could not send SMS:' + error));
-    })
+    // twilioClient.messages.create({
+    //   to: participant.phone,
+    //   from: process.env.TWILIO_PHONE_NUMBER,
+    //   body: text
+    // }).catch((error) => {
+    //   throw(new Error('could not send SMS:' + error));
+    // })
   }
 }
 
