@@ -5,31 +5,28 @@ import config from "../config";
 import { useRoute } from "vue-router";
 const route = useRoute();
 
-const result = ref(undefined as string | undefined);
-
+const participantName = ref("");
+const sessionName = ref("");
+const answer = ref("");
 const perspective = ref("");
+const submittedPerspective = ref("");
 
 const loading = ref(true);
-
-const submitted = ref(false);
-const submitting = ref(false);
-
 const loadingError = ref(undefined as undefined | string);
-const submitError = ref(undefined as undefined | string);
+
+const submitting = ref(false);
+const submittingError = ref(undefined as undefined | string);
 
 const check = async () => {
   loading.value = true;
   try {
-    const path = `/session/${route.params.session}/results/${route.params.key}`;
+    const path = `/session/${route.params.sessionId}/participation/${route.params.participationKey}`;
     const response = await axios.get(config.backendUrl + path);
-    if (response.data.perspective !== undefined) {
-      submitted.value = true;
-      perspective.value = response.data.perspective;
-    }
-    if (response.data.proposal !== undefined) {
-      result.value = response.data.result;
-    }
-    result.value = response.data;
+    submittedPerspective.value = response.data.perspective;
+    perspective.value = response.data.perspective;
+    answer.value = response.data.answer;
+    participantName.value = response.data.participantName;
+    sessionName.value = response.data.sessionName;
     loading.value = false;
     loadingError.value = undefined;
   } catch (e) {
@@ -42,19 +39,24 @@ onBeforeMount(check);
 
 const submit = async () => {
   if (perspective.value == "") {
-    submitError.value = "your perspective can't be empty";
+    submittingError.value = "your perspective can't be empty";
   } else {
     submitting.value = true;
     try {
       const { data } = await axios.post(config.backendUrl + "/perspective", {
-        sessionId: route.params.session,
-        secretKey: route.params.key,
+        sessionId: route.params.sessionId,
+        secretKey: route.params.participationKey,
         perspective: perspective.value,
       });
-      result.value = data;
-      submitError.value = undefined;
+      submittingError.value = undefined;
+      if (data.status == "complete") {
+        loading.value = true;
+        setTimeout(() => {
+          check();
+        }, 1000);
+      }
     } catch (e) {
-      submitError.value = "Failed to send data to the server. " + e;
+      submittingError.value = "Failed to send data to the server. " + e;
     }
     submitting.value = false;
   }
@@ -63,37 +65,58 @@ const submit = async () => {
 
 <template>
   <div v-if="loading">
-    <h1>Loading...</h1>
+    <h3>Loading session...</h3>
   </div>
-  <div v-if="loadingError">
-    <h1>Error when loading</h1>
-    <p>{{ loadingError }}</p>
-    <p>try again <button @click="check">here</button></p>
+  <div v-else-if="loadingError">
+    <h3>{{ loadingError }}</h3>
   </div>
-  <template v-else>
-    <div v-if="submitting">
-      <h1>Submitting...</h1>
-    </div>
-    <div v-else-if="result == undefined">
-      <div v-if="submitted">
-        <h1>Thank's for sharing your perspective!</h1>
-        <p>
-          you can still change your perspective until everyone else has
-          submitted theirs and the results are ready
-        </p>
-        <button @click="check">check whether results are ready now</button>
-      </div>
-      <h1 v-else>Tell the AI your perspective on the conflict</h1>
-      <textarea v-model="perspective" />
-      <button @click="submit">Submit</button>
-    </div>
-    <div v-else>
-      <h1>Here's what the AI thinks</h1>
-      <p>{{ result }}</p>
-      <h2>Here is what you said</h2>
-      <p>{{ perspective }}</p>
-    </div>
-  </template>
+  <div v-else-if="answer">
+    <h3>Here's what the AI thinks</h3>
+    <p>
+      Hi {{ participantName }}, thank you for participating in the mediation
+      session <i> {{ sessionName }} </i>. Here is your answer:
+    </p>
+    <p>{{ answer }}</p>
+    <h3>Here is your perspective again</h3>
+    <p>{{ submittedPerspective }}</p>
+  </div>
+  <div v-else-if="submitting">
+    <h3>Submitting perspective...</h3>
+  </div>
+  <div v-else>
+    <template v-if="submittedPerspective">
+      <h3>Thanks for submitting your perspective</h3>
+      <p>
+        Hi {{ participantName }}, thanks for submitting your perspective on the
+        mediation session <i> {{ sessionName }} </i>.
+      </p>
+      <p>
+        We are now waiting for the other participants to submit their
+        perspectives.
+      </p>
+      <button @click="check">Check again</button>
+      <p>
+        You can still change your perspective and resubmit until everyone has
+        submitted their perspectives.
+      </p>
+    </template>
+    <template v-else>
+      <h3>Tell the AI your perspective on the conflict</h3>
+      Hi {{ participantName }}, welcome to the mediation session
+      {{ sessionName }}. Please describe your perspective on the conflict.
+    </template>
+    <textarea v-model="perspective" />
+    <button @click="submit">
+      {{ submittedPerspective ? "Res" : "S" }}ubmit
+    </button>
+  </div>
 </template>
 
-<style></style>
+<style>
+textarea {
+  display: block;
+  margin: 1rem 0;
+  width: calc(100% - 0.5rem);
+  box-sizing: border-box;
+}
+</style>

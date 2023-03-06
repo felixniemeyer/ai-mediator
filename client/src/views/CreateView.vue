@@ -17,9 +17,9 @@ const emptyPerson: Person = {
   contact: "",
 };
 
-const addPerson = () => {
+function addPerson() {
   persons.value.push({ ...emptyPerson });
-};
+}
 
 // reactive list of persons
 const persons = ref([] as Person[]);
@@ -59,45 +59,46 @@ const createSession = async () => {
 </script>
 
 <template>
-  <h2>Start a new session</h2>
   <div v-if="sending">
-    <p>Sending request to server...</p>
+    <h2>Sending request to server...</h2>
   </div>
   <div v-else-if="ready">
-    <p>Session created!</p>
+    <h2>Session created!</h2>
     <p>
       Everyone should have received an inviation to explain their perspective.
     </p>
+    <p>You are done here and can close this tab.</p>
+    <p>
+      <RouterLink to="/">Go back to home</RouterLink>
+    </p>
   </div>
   <div v-else-if="error">
+    <h2>An error occured</h2>
     <p>Error: {{ error }}</p>
   </div>
   <div v-else>
+    <h2>Start a new mediation session</h2>
     <p>Enter contact details of the participants</p>
-    <ul>
-      <li v-for="(person, i) in persons" :key="i">
-        <input type="text" v-model="person.name" placeholder="name" />
-        <input
-          type="contact"
-          v-model="person.contact"
-          placeholder="contact info"
-        />
-        <button @click="removePerson(i)">Remove</button>
-      </li>
-      <li class="add-person">
-        <button @click="addPerson">Add person</button>
-      </li>
-    </ul>
-    <input type="text" v-model="session.name" placeholder="Session name" />
+    <div v-for="(person, i) in persons" :key="i">
+      <input type="text" v-model="person.name" placeholder="name" />
+      <input
+        type="contact"
+        v-model="person.contact"
+        placeholder="mail or phone"
+      />
+      <button @click="removePerson(i)">Remove</button>
+    </div>
     <p>
-      send invitations to the participants:
-      <button @click="createSession">Create session</button>
+      <button @click="addPerson">Add person</button>
+    </p>
+    <p>
+      <input type="text" v-model="session.name" placeholder="Session name" />
+    </p>
+    <p>
+      <button @click="createSession">Create session and send invitations</button>
     </p>
   </div>
 </template>
 
 <style>
-.add-person {
-  text-align: center;
-}
 </style>

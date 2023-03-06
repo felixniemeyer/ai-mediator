@@ -1,27 +1,69 @@
 <script setup lang="ts">
 import { RouterLink, RouterView } from "vue-router";
-import HelloWorld from "./components/HelloWorld.vue";
 </script>
 
 <template>
   <header>
-    <div>
+    <h1>
       <RouterLink to="/">
-        <img alt="chat therapy logo" class="logo" src="@/assets/logo.jpg" />
+        <img alt="chat therapy logo" class="logo" src="/icon.svg" />
+        AI mediator
       </RouterLink>
+    </h1>
+    <div class='content'>
+      <RouterView />
     </div>
-    <RouterView />
   </header>
 </template>
 
 <style scoped>
-router-link {
-  font-size: 10.5rem;
+h1 * {
+  vertical-align: middle;
+  color: #fff;
+  text-decoration: none;
+}
+h1 a:visited {
+  color: #fff;
 }
 
 .logo {
   width: 5rem;
   height: 5rem;
-  border-radius: 50%;
+  margin: 1rem; 
+}
+
+.content {
+  background-color: #fff2;
+  padding: 1rem;
+  border-radius: 1rem;
+}
+</style>
+
+<style>
+a {
+  color: #7af;
+}
+a:visited {
+  color: #d6f;
+}
+
+textarea,
+input,
+button {
+  font-size: 1rem;
+  padding: 0.3rem;
+}
+
+button {
+  cursor: pointer;
+}
+
+textarea,
+input {
+  margin-right: 0.2rem;
+  background-color: #000;
+  border-radius: 0.3rem;
+  border: none;
+  color: #fff;
 }
 </style>
