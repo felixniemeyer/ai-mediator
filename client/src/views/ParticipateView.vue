@@ -71,10 +71,10 @@ const submit = async () => {
     <h3>{{ loadingError }}</h3>
   </div>
   <div v-else-if="answer">
-    <h3>Here's what the AI thinks</h3>
+    <h3>AI's message to you</h3>
     <p>
       Hi {{ participantName }}, thank you for participating in the mediation
-      session <i> {{ sessionName }} </i>. Here is your answer:
+      session <i> {{ sessionName }} </i>. Here is what AI thinks:
     </p>
     <p>{{ answer }}</p>
     <h3>Here is your perspective again</h3>

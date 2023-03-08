@@ -51,7 +51,7 @@ textarea,
 input,
 button {
   font-size: 1rem;
-  padding: 0.3rem;
+  padding: 0.3rem 0.5rem;
 }
 
 button {
@@ -60,10 +60,13 @@ button {
 
 textarea,
 input {
-  margin-right: 0.2rem;
   background-color: #000;
   border-radius: 0.3rem;
   border: none;
   color: #fff;
+}
+
+input {
+  margin-right: 0.25rem;
 }
 </style>

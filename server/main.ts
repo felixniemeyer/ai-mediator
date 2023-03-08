@@ -263,11 +263,15 @@ function consultChatGPT(session: any, perspectives: {[secretKey: string]: string
       console.log(response.data);
       try {
         const answer = response.data.choices[0].message?.content;
-        fs.writeFile(answerFile(session.id, participant.secretKey), JSON.stringify(response.data), (err) => {
-          if (err) {
-            console.log(err);
-          }
-        })
+        if(!answer) {
+          throw(new Error('no answer or unexpected answer format'))
+        } else {
+          fs.writeFile(answerFile(session.id, participant.secretKey), answer, (err) => {
+            if (err) {
+              console.log(err);
+            }
+          })
+        }
       } catch (e) {
         console.error('something went wrong when parsing the response from openai', e);
       }
